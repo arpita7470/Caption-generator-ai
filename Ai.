@@ -1,0 +1,365 @@
+import React, { useState, useRef } from 'react';
+import { Sparkles, Copy, Check, Instagram, Image as ImageIcon, Wand2, Hash, AlertCircle, Loader2 } from 'lucide-react';
+
+const TONES = [
+  { id: 'casual', label: 'Casual & Friendly', icon: '😊' },
+  { id: 'funny', label: 'Funny & Witty', icon: '😂' },
+  { id: 'professional', label: 'Professional', icon: '💼' },
+  { id: 'inspirational', label: 'Inspirational', icon: '✨' },
+  { id: 'romantic', label: 'Romantic', icon: '❤️' },
+  { id: 'sassy', label: 'Sassy & Bold', icon: '🔥' },
+  { id: 'mysterious', label: 'Mysterious', icon: '🌒' },
+  { id: 'aesthetic', label: 'Aesthetic/Poetic', icon: '🌸' }
+];
+
+export default function App() {
+  const [description, setDescription] = useState('');
+  const [selectedTone, setSelectedTone] = useState('casual');
+  const [keywords, setKeywords] = useState('');
+  
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [captions, setCaptions] = useState([]);
+  const [error, setError] = useState('');
+  const [copiedIndex, setCopiedIndex] = useState(null);
+
+  // Fallback copy method for iframes
+  const copyToClipboard = (text, index) => {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      
+      // Avoid scrolling to bottom
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+
+      if (successful) {
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+      }
+    } catch (err) {
+      console.error('Fallback: Oops, unable to copy', err);
+    }
+  };
+
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const generateCaptions = async () => {
+    if (!description.trim()) {
+      setError("Please describe your photo or video first!");
+      return;
+    }
+
+    setIsGenerating(true);
+    setError('');
+    setCaptions([]);
+
+    const apiKey = ""; // API key is injected by the environment
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+    const prompt = `You are an expert social media manager and influencer. Generate 3 highly engaging, creative, and viral-worthy Instagram captions based on the user's input.
+    
+    Details:
+    - Post Description: ${description}
+    - Desired Tone: ${selectedTone}
+    - Keywords/Hashtags to include: ${keywords || 'None specifically, use relevant ones'}
+    
+    Guidelines:
+    - Include a good mix of relevant emojis.
+    - Format them nicely with line breaks if necessary.
+    - Include relevant and trending hashtags at the end of each caption.
+    - Make them engaging (ask questions, use hooks, etc.).`;
+
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      systemInstruction: {
+        parts: [{ text: "You are an Instagram caption expert. Always return responses in valid JSON." }]
+      },
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            captions: {
+              type: "ARRAY",
+              items: { type: "STRING" }
+            }
+          }
+        }
+      }
+    };
+
+    const retries = [1000, 2000, 4000, 8000, 16000];
+    let attempt = 0;
+    let success = false;
+
+    while (attempt < retries.length && !success) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (textResponse) {
+          const parsedData = JSON.parse(textResponse);
+          if (parsedData && parsedData.captions) {
+            setCaptions(parsedData.captions);
+            success = true;
+          } else {
+            throw new Error("Invalid response format");
+          }
+        } else {
+           throw new Error("Empty response from AI");
+        }
+      } catch (err) {
+        attempt++;
+        if (attempt >= retries.length) {
+          setError("Failed to generate captions after multiple attempts. Please try again later.");
+        } else {
+          await delay(retries[attempt - 1]);
+        }
+      }
+    }
+    
+    setIsGenerating(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-fuchsia-500/30 overflow-x-hidden relative">
+      {/* Background Gradients */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-fuchsia-600/20 blur-[120px]" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-indigo-600/20 blur-[120px]" />
+        <div className="absolute top-[30%] left-[40%] w-[30%] h-[30%] rounded-full bg-orange-500/10 blur-[100px]" />
+      </div>
+
+      {/* Navbar */}
+      <nav className="relative z-10 border-b border-white/10 bg-slate-950/50 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center p-[2px]">
+              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+                <Instagram className="w-5 h-5 text-white" />
+              </div>
+            </div>
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+              CaptionMagic AI
+            </span>
+          </div>
+          <a href="#" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">
+            Give Feedback
+          </a>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
+            Turn your moments into{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500">
+              viral stories
+            </span>
+          </h1>
+          <p className="text-lg text-slate-400">
+            Describe your photo, choose a vibe, and let our AI craft the perfect Instagram caption in seconds.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+          
+          {/* Left Column: Form */}
+          <div className="lg:col-span-5 space-y-8">
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl relative overflow-hidden">
+              
+              {/* Decorative corner */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-white/5 to-transparent rounded-bl-full pointer-events-none" />
+
+              <div className="space-y-6 relative z-10">
+                {/* Description Input */}
+                <div className="space-y-3">
+                  <label className="flex items-center text-sm font-medium text-slate-300">
+                    <ImageIcon className="w-4 h-4 mr-2 text-pink-400" />
+                    What's your post about?
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="e.g., A cozy coffee shop in rainy Seattle with my best friend..."
+                    className="w-full h-32 bg-slate-900/50 border border-slate-700/50 rounded-xl p-4 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all resize-none shadow-inner"
+                  />
+                </div>
+
+                {/* Tone Selector */}
+                <div className="space-y-3">
+                  <label className="flex items-center text-sm font-medium text-slate-300">
+                    <Wand2 className="w-4 h-4 mr-2 text-purple-400" />
+                    Choose the Vibe
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    {TONES.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setSelectedTone(t.id)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-all duration-200 ${
+                          selectedTone === t.id
+                            ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/50 text-white shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                            : 'bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
+                        }`}
+                      >
+                        <span className="mr-2 text-base">{t.icon}</span>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Keywords Input */}
+                <div className="space-y-3">
+                  <label className="flex items-center text-sm font-medium text-slate-300">
+                    <Hash className="w-4 h-4 mr-2 text-indigo-400" />
+                    Keywords or Hashtags (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={keywords}
+                    onChange={(e) => setKeywords(e.target.value)}
+                    placeholder="e.g., coffee, seattle, rainyday"
+                    className="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all shadow-inner"
+                  />
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="flex items-start p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                    <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+                    <p>{error}</p>
+                  </div>
+                )}
+
+                {/* Generate Button */}
+                <button
+                  onClick={generateCaptions}
+                  disabled={isGenerating}
+                  className="w-full group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-xl hover:from-pink-400 hover:via-purple-400 hover:to-indigo-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_30px_rgba(168,85,247,0.3)] hover:shadow-[0_0_40px_rgba(168,85,247,0.5)] overflow-hidden"
+                >
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Brewing Magic...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Generate Captions
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Results */}
+          <div className="lg:col-span-7 flex flex-col h-full">
+            {isGenerating ? (
+              <div className="h-full min-h-[400px] flex flex-col items-center justify-center space-y-6 bg-white/[0.02] border border-white/5 rounded-3xl p-8 backdrop-blur-sm animate-pulse">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full border-4 border-slate-800 border-t-purple-500 animate-spin" />
+                  <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-pink-500 animate-pulse" />
+                </div>
+                <p className="text-slate-400 font-medium">Crafting the perfect words...</p>
+              </div>
+            ) : captions.length > 0 ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white flex items-center">
+                    <Sparkles className="w-5 h-5 mr-2 text-yellow-400" />
+                    Your Captions
+                  </h3>
+                  <span className="text-sm text-slate-400 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700/50">
+                    3 Options
+                  </span>
+                </div>
+                
+                <div className="space-y-4">
+                  {captions.map((caption, index) => (
+                    <div 
+                      key={index}
+                      className="group bg-white/5 border border-white/10 hover:border-purple-500/30 rounded-2xl p-6 transition-all duration-300 hover:bg-white/[0.08] relative hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]"
+                    >
+                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap font-medium">
+                        {caption}
+                      </p>
+                      
+                      <div className="mt-6 flex items-center justify-end">
+                        <button
+                          onClick={() => copyToClipboard(caption, index)}
+                          className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            copiedIndex === index 
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                              : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/50'
+                          }`}
+                        >
+                          {copiedIndex === index ? (
+                            <>
+                              <Check className="w-4 h-4 mr-2" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Copy Caption
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              /* Empty State */
+              <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center bg-white/[0.02] border border-white/5 border-dashed rounded-3xl p-12 backdrop-blur-sm">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-slate-800 to-slate-900 flex items-center justify-center mb-6 shadow-xl border border-white/5 relative group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <Instagram className="w-8 h-8 text-slate-500 group-hover:text-purple-400 transition-colors" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Awaiting Instructions</h3>
+                <p className="text-slate-400 max-w-sm">
+                  Fill out the form on the left and hit generate. We'll conjure up some amazing captions for your next post.
+                </p>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </main>
+      
+      {/* CSS Animation defined inline via utility config conceptually, adding keyframes via generic tailwind support */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes shimmer {
+          100% {
+            transform: translateX(100%);
+          }
+        }
+      `}} />
+    </div>
+  );
+}
