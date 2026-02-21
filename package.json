@@ -1,0 +1,1 @@
+{"name": "caption-generator-ai", "version": "1.0.0", "description": "A Node.js application to generate captions.", "main": "index.js", "scripts": {"start": "node index.js", "test": "echo 'Error: no test specified' && exit 1"}, "dependencies": {"express": "^4.17.1", "axios": "^0.21.1"}}
